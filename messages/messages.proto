@@ -1,0 +1,311 @@
+// This file defines the data contracts (messages) for your Axiom package.
+// Every node's --input and --output refers to a message defined here.
+//
+// Run `axiom create message <Name>` to scaffold a new message below.
+// Run `axiom generate` to compile these definitions into language bindings in gen/.
+//
+// DOCUMENTATION
+//   Comments written directly above a message or field declaration are extracted
+//   automatically at publish time and shown in the Axiom registry as documentation.
+//   Write your descriptions there — no separate doc files needed.
+//
+//   Leading comment  (no blank line before the declaration) → registry description ✓
+//   Detached comment (blank line before the declaration)    → ignored by registry  ✗
+//
+// This file is yours to edit. Axiom only appends new message blocks — it never
+// overwrites or removes content you have written.
+
+syntax = "proto3";
+
+package christiangeorgelucas.wsdl_tools;
+
+// Raw WSDL document text, the sole input shape every parsing/inspection node
+// consumes. Supply the full WSDL 1.1 or 2.0 XML document as a string — never a
+// URL: nodes never fetch, so `<import>`/`<xsd:import>` locations are reported,
+// not resolved.
+message WsdlInput {
+  string wsdl = 1;
+}
+
+// One declared endpoint of a service: a WSDL 1.1 <port> or WSDL 2.0 <endpoint>.
+message Port {
+  string name = 1;
+  // Name of the binding this port implements (as written in the document).
+  string binding = 2;
+  // The concrete SOAP endpoint URL from soap:address/soap12:address location.
+  string address_location = 3;
+  // The SOAP transport URI declared on the binding this port uses, if resolvable.
+  string transport = 4;
+}
+
+// One <service> element and every port/endpoint it exposes.
+message ServiceInfo {
+  string name = 1;
+  repeated Port ports = 2;
+}
+
+message ServicesResult {
+  repeated ServiceInfo services = 1;
+  // "1.1" | "2.0" | "unknown"
+  string version = 2;
+  // Set (non-empty) when the document could not be parsed at all; services is empty in that case.
+  string error = 3;
+}
+
+// A single service endpoint, flattened out of its owning service — the
+// "what SOAP endpoints does this document declare" inventory view.
+message Endpoint {
+  string service_name = 1;
+  string port_name = 2;
+  string binding = 3;
+  string address_location = 4;
+  string transport = 5;
+}
+
+message EndpointsResult {
+  repeated Endpoint endpoints = 1;
+  string error = 2;
+}
+
+// One operation's message references, as declared on a portType/interface
+// (before consulting any binding).
+message OperationSummary {
+  string name = 1;
+  string input_message = 2;
+  string output_message = 3;
+  repeated string fault_messages = 4;
+}
+
+// A WSDL 1.1 <portType> or WSDL 2.0 <interface>, with its operations.
+message PortTypeInfo {
+  string name = 1;
+  repeated OperationSummary operations = 2;
+}
+
+message PortTypesResult {
+  repeated PortTypeInfo port_types = 1;
+  string error = 2;
+}
+
+// Look up ONE operation's full detail by name. If more than one portType
+// declares an operation with this name, disambiguate with port_type_name.
+message GetOperationInput {
+  string wsdl = 1;
+  string operation_name = 2;
+  // Optional disambiguator when multiple portTypes share an operation name.
+  string port_type_name = 3;
+}
+
+message OperationDetail {
+  bool found = 1;
+  string name = 2;
+  string port_type_name = 3;
+  string input_message = 4;
+  string output_message = 5;
+  repeated string fault_messages = 6;
+  // The soapAction from the binding's <soap:operation>, if a binding for this
+  // portType declares one. Empty when no binding references this operation.
+  string soap_action = 7;
+  // "document" | "rpc" | "" (unknown / not bound).
+  string style = 8;
+  string error = 9;
+}
+
+// One row of the whole-document operation inventory.
+message OperationInventoryItem {
+  string name = 1;
+  string port_type_name = 2;
+  string input_message = 3;
+  string output_message = 4;
+  bool has_faults = 5;
+}
+
+message OperationsResult {
+  repeated OperationInventoryItem operations = 1;
+  string error = 2;
+}
+
+// One <part> of a WSDL 1.1 <message> — abstract data it carries, referencing
+// either an XSD element or an XSD type.
+message MessagePart {
+  string name = 1;
+  // Qualified element reference (part element="..."), empty if unused.
+  string element = 2;
+  // Qualified type reference (part type="..."), empty if unused.
+  string type = 3;
+}
+
+message MessageInfo {
+  string name = 1;
+  repeated MessagePart parts = 2;
+}
+
+message MessagesResult {
+  repeated MessageInfo messages = 1;
+  string error = 2;
+}
+
+// One operation as bound to the SOAP wire format inside a <binding>.
+message BindingOperation {
+  string name = 1;
+  string soap_action = 2;
+  // "document" | "rpc" | "" (inherited/unspecified).
+  string style = 3;
+}
+
+// A WSDL <binding>: which portType/interface it implements, over which SOAP
+// version and transport, plus its per-operation SOAP details.
+message BindingInfo {
+  string name = 1;
+  // The portType/interface this binding implements (its `type` attribute).
+  string type = 2;
+  // The soap:binding transport URI (e.g. http://schemas.xmlsoap.org/soap/http).
+  string transport = 3;
+  // Binding-level default style: "document" | "rpc" | "".
+  string style = 4;
+  // "1.1" | "1.2" | "" (no soap:binding/soap12:binding found — non-SOAP binding).
+  string soap_version = 5;
+  repeated BindingOperation operations = 6;
+}
+
+message BindingsResult {
+  repeated BindingInfo bindings = 1;
+  string error = 2;
+}
+
+// One field of an XSD complexType (a <xsd:element> inside its <xsd:sequence>/
+// <xsd:all>/<xsd:choice>).
+message XsdField {
+  string name = 1;
+  string type = 2;
+  string min_occurs = 3;
+  string max_occurs = 4;
+}
+
+// One top-level <xsd:complexType> declared in the WSDL's inline <types> section.
+message XsdComplexType {
+  string name = 1;
+  repeated XsdField fields = 2;
+}
+
+// One top-level <xsd:element> declared in the WSDL's inline <types> section.
+message XsdElement {
+  string name = 1;
+  string type = 2;
+}
+
+message TypesResult {
+  string target_namespace = 1;
+  repeated XsdElement elements = 2;
+  repeated XsdComplexType complex_types = 3;
+  string error = 4;
+}
+
+// One xmlns declaration. prefix is "" for the default namespace.
+message NamespaceDecl {
+  string prefix = 1;
+  string uri = 2;
+}
+
+message NamespacesResult {
+  repeated NamespaceDecl namespaces = 1;
+  string target_namespace = 2;
+  string error = 3;
+}
+
+// One <import>/<xsd:import>/<xsd:include> reference. Locations are reported
+// verbatim, never fetched.
+message ImportDecl {
+  string namespace = 1;
+  string location = 2;
+  // "wsdl_import" | "xsd_import" | "xsd_include"
+  string kind = 3;
+}
+
+message ImportsResult {
+  repeated ImportDecl imports = 1;
+  string error = 2;
+}
+
+// Resolve one named operation all the way to its concrete, callable SOAP
+// endpoint: portType operation -> binding -> service port address. The
+// composability node — this is the answer to "where do I actually send this
+// SOAP call". Disambiguate with service_name/port_name when more than one
+// service/port implements the operation's binding.
+message ResolveOperationEndpointInput {
+  string wsdl = 1;
+  string operation_name = 2;
+  string service_name = 3;
+  string port_name = 4;
+}
+
+message ResolvedEndpoint {
+  bool found = 1;
+  string operation_name = 2;
+  string port_type_name = 3;
+  string binding_name = 4;
+  string service_name = 5;
+  string port_name = 6;
+  string address_location = 7;
+  string transport = 8;
+  string soap_action = 9;
+  string style = 10;
+  string error = 11;
+}
+
+// Document-wide counts — the fast "what am I looking at" call before diving
+// into any one section.
+message WsdlSummary {
+  string version = 1;
+  string target_namespace = 2;
+  int32 service_count = 3;
+  int32 port_count = 4;
+  int32 binding_count = 5;
+  int32 port_type_count = 6;
+  int32 operation_count = 7;
+  int32 message_count = 8;
+  int32 complex_type_count = 9;
+  int32 element_count = 10;
+  int32 import_count = 11;
+  string error = 12;
+}
+
+// One structural issue found by ValidateWsdl.
+message ValidationIssue {
+  // "error" | "warning"
+  string severity = 1;
+  string code = 2;
+  string message = 3;
+}
+
+message ValidationResult {
+  bool valid = 1;
+  string version = 2;
+  repeated ValidationIssue issues = 3;
+  string error = 4;
+}
+
+message WsdlVersionResult {
+  // "1.1" | "2.0" | "unknown"
+  string version = 1;
+  string root_element = 2;
+  string namespace_uri = 3;
+  string error = 4;
+}
+
+// The full structured representation of a WSDL document in one call — the
+// general-purpose parse every other node in this package is a specialized,
+// cheaper view of.
+message WsdlDocument {
+  string version = 1;
+  string target_namespace = 2;
+  repeated NamespaceDecl namespaces = 3;
+  repeated ServiceInfo services = 4;
+  repeated BindingInfo bindings = 5;
+  repeated PortTypeInfo port_types = 6;
+  repeated MessageInfo messages = 7;
+  repeated XsdElement types_elements = 8;
+  repeated XsdComplexType types_complex_types = 9;
+  repeated ImportDecl imports = 10;
+  string error = 11;
+}

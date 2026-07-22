@@ -1,0 +1,177 @@
+name: christiangeorgelucas/wsdl-tools
+version: 0.1.0
+language: typescript
+description: >-
+  Deterministic parsing and structural inspection of WSDL (Web Services
+  Description Language) documents — the XML contract format for SOAP/XML
+  web services — over caller-supplied TEXT only (never fetched over the
+  network). Detects WSDL 1.1 vs 2.0, parses namespaces, services and their
+  ports/endpoints (including the concrete SOAP address URL), portTypes/
+  interfaces and their operations, per-operation detail (input/output/fault
+  messages, SOAP action, document/rpc style), the abstract messages and
+  their parts, bindings (SOAP transport, style, per-operation soapAction),
+  the inline XSD <types> section's top-level elements and complexTypes,
+  declared <import>/<xsd:import>/<xsd:include> locations (reported, never
+  resolved), document-wide summary counts, and basic structural validation
+  (definitions root present, services/bindings/portTypes cross-references
+  resolve). Also resolves one named operation all the way to its concrete
+  callable endpoint (portType operation -> binding -> service port
+  address) — the composability node for wiring a SOAP call downstream.
+  Uses fast-xml-parser (MIT) for safe XML parsing (DOCTYPE/entity
+  processing rejected outright, no XXE) plus this package's own WSDL-schema
+  knowledge — not a SOAP client library, since these nodes only parse the
+  document, they never place a call. Every node is a pure, stateless,
+  single-input-to-single-output transform; input size and nesting depth are
+  bounded, and malformed input returns a structured error rather than
+  crashing.
+license: MIT
+author: Christian George Lucas
+tags:
+  - wsdl
+  - soap
+  - web-services
+  - xml
+  - wsdl-1.1
+  - wsdl-2.0
+  - enterprise-integration
+  - service-contract
+nodes:
+    - name: ParseWsdl
+      input: WsdlInput
+      output: WsdlDocument
+      description: >-
+        Parse a full WSDL 1.1 or 2.0 document into one structured
+        representation in a single call: detected version, target
+        namespace, declared namespaces, services (with ports/endpoint
+        addresses), bindings, portTypes/interfaces (with operations), the
+        abstract messages, the inline XSD types section's elements and
+        complexTypes, and import/include references. The general-purpose
+        parse every other node in this package is a cheaper, specialized
+        view of. A document that isn't rooted at wsdl:definitions (1.1) or
+        wsdl20:description (2.0) returns a structured error naming the
+        actual root element.
+    - name: DetectWsdlVersion
+      input: WsdlInput
+      output: WsdlVersionResult
+      description: >-
+        Classify a document as WSDL 1.1, WSDL 2.0, or unknown, by its root
+        element and namespace URI, without parsing the rest of the
+        document. The cheap dispatch check before calling a version-
+        specific reader.
+    - name: ListServices
+      input: WsdlInput
+      output: ServicesResult
+      description: >-
+        List every <service> (WSDL 1.1) / service (2.0) declared, each with
+        its full list of ports/endpoints (port name, binding it implements,
+        and the concrete soap:address/soap12:address location URL).
+    - name: ListEndpoints
+      input: WsdlInput
+      output: EndpointsResult
+      description: >-
+        List every service endpoint in the document as one flat inventory —
+        service name, port name, binding, address location, and transport
+        for each — rather than grouped by service. The quick "what SOAP
+        URLs does this document declare" view.
+    - name: ListPortTypes
+      input: WsdlInput
+      output: PortTypesResult
+      description: >-
+        List every portType (WSDL 1.1) / interface (2.0) declared, each
+        with its operations (name, input message, output message, fault
+        messages) as declared on the abstract interface, before consulting
+        any binding.
+    - name: GetOperation
+      input: GetOperationInput
+      output: OperationDetail
+      description: >-
+        Look up one operation by name and return its full detail: owning
+        portType, input/output/fault messages, and — if a binding in the
+        document binds this operation to SOAP — its soapAction and
+        document/rpc style. Pass port_type_name to disambiguate when more
+        than one portType declares an operation with the same name.
+        found=false and a structured error when no operation matches.
+    - name: ListOperations
+      input: WsdlInput
+      output: OperationsResult
+      description: >-
+        List every operation across the whole document — the "what can
+        this service do" inventory: name, owning portType, input/output
+        message, and whether it declares any fault messages.
+    - name: ListMessages
+      input: WsdlInput
+      output: MessagesResult
+      description: >-
+        List every WSDL 1.1 abstract <message> and its <part> elements
+        (each part's name plus its element or type reference). WSDL 2.0
+        documents reference XSD elements directly on interface operations
+        instead of using a separate message construct, so this returns an
+        empty list for 2.0 documents (not an error).
+    - name: ListBindings
+      input: WsdlInput
+      output: BindingsResult
+      description: >-
+        List every <binding>: the portType/interface it implements, its
+        SOAP transport URI, its default document/rpc style, its SOAP
+        version (1.1 vs 1.2, detected from which binding extension
+        namespace is used), and its per-operation soapAction/style
+        overrides. A binding with no soap:binding/soap12:binding element
+        (e.g. an HTTP or MIME binding) reports soap_version="".
+    - name: ListTypes
+      input: WsdlInput
+      output: TypesResult
+      description: >-
+        Extract the inline XSD <types> section's structural summary: the
+        target namespace, every top-level <xsd:element> (name + type), and
+        every top-level <xsd:complexType> (name + its direct fields with
+        their type and min/maxOccurs). Structural only — nested/anonymous
+        type definitions are not recursively expanded; use a dedicated XSD
+        tool for deep schema analysis.
+    - name: ListNamespaces
+      input: WsdlInput
+      output: NamespacesResult
+      description: >-
+        Extract every xmlns declaration on the document's root element
+        (prefix -> URI, "" prefix for the default namespace) plus the
+        declared targetNamespace.
+    - name: ListImports
+      input: WsdlInput
+      output: ImportsResult
+      description: >-
+        Extract every <import> (WSDL-level) and <xsd:import>/<xsd:include>
+        (schema-level) reference declared in the document: namespace and
+        location, verbatim as written. Locations are reported only — this
+        node never fetches them.
+    - name: ResolveOperationEndpoint
+      input: ResolveOperationEndpointInput
+      output: ResolvedEndpoint
+      description: >-
+        Resolve one named operation all the way to its concrete, callable
+        SOAP endpoint: portType/interface operation -> the binding that
+        implements it -> a service port using that binding -> that port's
+        address URL. Returns soapAction and style alongside the address.
+        The composability node — the answer to "where do I actually send
+        this call". Disambiguate with service_name/port_name when more
+        than one service or port resolves. found=false and a structured
+        error when the operation, its binding, or a port for it cannot be
+        resolved.
+    - name: SummarizeWsdl
+      input: WsdlInput
+      output: WsdlSummary
+      description: >-
+        Document-wide counts in one call: detected version, target
+        namespace, and counts of services, ports, bindings, portTypes,
+        operations, messages, complexTypes, elements, and imports. The
+        fast "what am I looking at" check before deciding which detail
+        node to call next.
+    - name: ValidateWsdl
+      input: WsdlInput
+      output: ValidationResult
+      description: >-
+        Validate basic WSDL structural correctness and report every issue
+        found: a recognizable definitions/description root exists, every
+        service's ports reference a binding that is actually declared,
+        every binding's type references a portType/interface that is
+        actually declared, and every operation an input/output message or
+        element it references resolves. valid=true only when there are no
+        error-severity issues (warnings do not fail validity).
