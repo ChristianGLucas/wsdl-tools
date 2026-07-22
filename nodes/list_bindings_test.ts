@@ -1,7 +1,7 @@
 import { WsdlInput } from '../gen/messages_pb';
 import { listBindings } from './list_bindings';
 import { testContext } from './lib/test_context';
-import { STOCK_QUOTE_WSDL } from './lib/fixtures';
+import { STOCK_QUOTE_WSDL, WSDL2_SAMPLE } from './lib/fixtures';
 
 function makeInput(wsdl: string): WsdlInput {
   const i = new WsdlInput();
@@ -41,5 +41,22 @@ describe('ListBindings', () => {
     expect(out.getBindingsList().length).toBe(1);
     expect(out.getBindingsList()[0].getSoapVersion()).toBe('');
     expect(out.getBindingsList()[0].getTransport()).toBe('');
+  });
+
+  it('reads the WSDL 2.0 `interface` attribute (not `type`, which 2.0 bindings do not have) to resolve what a binding implements, and matches operations by `ref` not `name`', () => {
+    // Regression test: WSDL 1.1 bindings reference their portType via a
+    // `type` attribute; WSDL 2.0 bindings instead use `interface` (`type`
+    // is not a WSDL 2.0 binding attribute at all), and WSDL 2.0 binding
+    // operations reference the interface operation via `ref`, not `name`.
+    // Reading `type`/`name` unconditionally for both versions silently
+    // produced an empty binding type and an empty operation name for every
+    // WSDL 2.0 document, breaking ValidateWsdl's cross-reference check and
+    // ResolveOperationEndpoint/GetOperation's binding lookup for 2.0.
+    const out = listBindings(testContext, makeInput(WSDL2_SAMPLE));
+    expect(out.getBindingsList().length).toBe(1);
+    const binding = out.getBindingsList()[0];
+    expect(binding.getType()).toBe('tns:StockQuoteInterface');
+    expect(binding.getOperationsList().length).toBe(1);
+    expect(binding.getOperationsList()[0].getName()).toBe('GetLastTradePrice');
   });
 });

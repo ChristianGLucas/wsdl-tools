@@ -126,7 +126,8 @@ export const WSDL2_SAMPLE = `<?xml version="1.0" encoding="UTF-8"?>
     </operation>
   </interface>
 
-  <binding name="StockQuoteSoapBinding" type="tns:StockQuoteInterface" interface="tns:StockQuoteInterface">
+  <binding name="StockQuoteSoapBinding" interface="tns:StockQuoteInterface" type="http://www.w3.org/ns/wsdl/soap">
+    <operation ref="tns:GetLastTradePrice"/>
   </binding>
 
   <service name="StockQuoteService" interface="tns:StockQuoteInterface">

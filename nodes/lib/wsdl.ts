@@ -239,6 +239,7 @@ function parsePortTypes(definitions: XmlNode, version: '1.1' | '2.0'): ModelPort
 
 function parseBindings(
   definitions: XmlNode,
+  version: '1.1' | '2.0',
   rootNamespaces: Record<string, string>
 ): ModelBinding[] {
   return children(definitions, 'binding').map((b) => {
@@ -256,12 +257,31 @@ function parseBindings(
           opStyle = attr(opExt.el, 'style', style);
         }
       }
-      return { name: attr(op, 'name'), soapAction, style: opStyle };
+      // WSDL 1.1 binding operations are matched to their portType operation by
+      // `name`. WSDL 2.0 binding operations instead carry a `ref` QName
+      // pointing at the interface operation — there is no `name` attribute at
+      // all. Normalize both to a bare operation name so downstream matching
+      // (GetOperation/ResolveOperationEndpoint) is version-agnostic.
+      const opName = version === '2.0' ? localPart(attr(op, 'ref')) : attr(op, 'name');
+      return { name: opName, soapAction, style: opStyle };
     });
+
+    // WSDL 1.1 <binding> declares the portType it implements via `type`. WSDL
+    // 2.0 <binding> instead uses a SEPARATE `interface` attribute for that —
+    // its own `type` attribute means something else entirely (the protocol/
+    // extension URI, e.g. "http://www.w3.org/ns/wsdl/soap"), not an interface
+    // reference, so it must never be used as a fallback here: doing so would
+    // silently return the protocol URI as if it were the interface name.
+    // Read the version-correct attribute so binding-to-portType/interface
+    // resolution (ValidateWsdl's cross-reference check, GetOperation,
+    // ResolveOperationEndpoint) works for both versions instead of silently
+    // failing — or silently returning the wrong string — on every WSDL 2.0
+    // document.
+    const implementedType = version === '2.0' ? attr(b, 'interface') : attr(b, 'type');
 
     return {
       name: attr(b, 'name'),
-      type: attr(b, 'type'),
+      type: implementedType,
       transport,
       style,
       soapVersion,
@@ -434,7 +454,7 @@ export function parseWsdlDocument(xml: string): ParseWsdlResult {
   const { typesTargetNamespace, elements, complexTypes } = parseTypesSection(root, targetNamespace);
   const messages = version === '1.1' ? parseMessages(root) : [];
   const portTypes = parsePortTypes(root, version);
-  const bindings = parseBindings(root, rootNamespaces);
+  const bindings = parseBindings(root, version, rootNamespaces);
   const services = parseServices(root, version, bindings, rootNamespaces);
   const imports = parseImports(root);
 

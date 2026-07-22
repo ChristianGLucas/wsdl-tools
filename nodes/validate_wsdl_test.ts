@@ -1,7 +1,7 @@
 import { WsdlInput } from '../gen/messages_pb';
 import { validateWsdl } from './validate_wsdl';
 import { testContext } from './lib/test_context';
-import { STOCK_QUOTE_WSDL, BROKEN_REFS_WSDL, NOT_WSDL_XML } from './lib/fixtures';
+import { STOCK_QUOTE_WSDL, BROKEN_REFS_WSDL, NOT_WSDL_XML, WSDL2_SAMPLE } from './lib/fixtures';
 
 function makeInput(wsdl: string): WsdlInput {
   const i = new WsdlInput();
@@ -25,6 +25,17 @@ describe('ValidateWsdl', () => {
     expect(codes).toContain('PORT_BINDING_NOT_FOUND');
     const errorIssues = out.getIssuesList().filter((i) => i.getSeverity() === 'error');
     expect(errorIssues.length).toBe(2);
+  });
+
+  it('reports valid=true (no false-positive BINDING_TYPE_NOT_FOUND) for a spec-correct WSDL 2.0 document', () => {
+    // Regression test: a WSDL 2.0 <binding> references its interface via the
+    // `interface` attribute, not `type` (whose value in 2.0 is an unrelated
+    // protocol/extension URI). Reading `type` unconditionally previously made
+    // this exact, fully-valid document report a false BINDING_TYPE_NOT_FOUND.
+    const out = validateWsdl(testContext, makeInput(WSDL2_SAMPLE));
+    expect(out.getValid()).toBe(true);
+    expect(out.getVersion()).toBe('2.0');
+    expect(out.getIssuesList().map((i) => i.getCode())).not.toContain('BINDING_TYPE_NOT_FOUND');
   });
 
   it('reports the missing WSDL root as a structural issue, not a top-level crash', () => {

@@ -1,7 +1,7 @@
 import { ResolveOperationEndpointInput } from '../gen/messages_pb';
 import { resolveOperationEndpoint } from './resolve_operation_endpoint';
 import { testContext } from './lib/test_context';
-import { STOCK_QUOTE_WSDL } from './lib/fixtures';
+import { STOCK_QUOTE_WSDL, WSDL2_SAMPLE } from './lib/fixtures';
 
 function makeInput(wsdl: string, operationName: string, serviceName = '', portName = ''): ResolveOperationEndpointInput {
   const i = new ResolveOperationEndpointInput();
@@ -50,5 +50,18 @@ describe('ResolveOperationEndpoint', () => {
     const out = resolveOperationEndpoint(testContext, makeInput(STOCK_QUOTE_WSDL, 'NoSuchOp'));
     expect(out.getFound()).toBe(false);
     expect(out.getError()).not.toBe('');
+  });
+
+  it('resolves an operation on a spec-correct WSDL 2.0 document — the exact case the composability node exists for', () => {
+    // Regression test: this previously failed to resolve at all, because
+    // binding-to-interface matching read the wrong attribute for WSDL 2.0
+    // (see the ListBindings/ValidateWsdl regression tests for the root cause).
+    const out = resolveOperationEndpoint(testContext, makeInput(WSDL2_SAMPLE, 'GetLastTradePrice'));
+    expect(out.getFound()).toBe(true);
+    expect(out.getServiceName()).toBe('StockQuoteService');
+    expect(out.getPortName()).toBe('StockQuoteEndpoint');
+    expect(out.getBindingName()).toBe('StockQuoteSoapBinding');
+    expect(out.getPortTypeName()).toBe('StockQuoteInterface');
+    expect(out.getAddressLocation()).toBe('http://example.com/stockquote2');
   });
 });

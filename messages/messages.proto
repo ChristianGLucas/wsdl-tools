@@ -157,7 +157,10 @@ message BindingOperation {
 // version and transport, plus its per-operation SOAP details.
 message BindingInfo {
   string name = 1;
-  // The portType/interface this binding implements (its `type` attribute).
+  // The portType/interface this binding implements: WSDL 1.1's `type`
+  // attribute, or WSDL 2.0's `interface` attribute (2.0's own `type`
+  // attribute is an unrelated protocol/extension URI, not an interface
+  // reference — never read for this field).
   string type = 2;
   // The soap:binding transport URI (e.g. http://schemas.xmlsoap.org/soap/http).
   string transport = 3;
