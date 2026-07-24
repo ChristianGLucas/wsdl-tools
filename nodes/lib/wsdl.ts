@@ -14,10 +14,13 @@
 // elements/complexTypes only) — a nested/anonymous type is not recursively
 // expanded; use a dedicated XSD tool for deep schema analysis.
 
-import { checkDepth, checkEmpty, checkSize } from './guard';
+import { checkDepth, checkEmpty } from './guard';
 import { attr, child, childOfAny, children, localName, localPart, namespaceDecls, parseXml, prefixOf, resolveNamespace, XmlNode } from './xml';
 
-export const MAX_XML_BYTES = 3 * 1024 * 1024; // 3 MiB — headroom under the ~4 MiB gRPC transport cap
+// Genuine stack-overflow guard (not a payload-size cap): fast-xml-parser
+// builds its tree recursively, so pathologically deep nesting can exhaust
+// the call stack. Kept for that reason even though byte-size limits are
+// otherwise the platform's job, not this node's.
 export const MAX_NESTING_DEPTH = 300;
 
 export const WSDL1_NS = 'http://schemas.xmlsoap.org/wsdl/';
@@ -369,9 +372,6 @@ export type DetectWsdlVersionResult = DetectVersionOkResult | WsdlErrorResult;
 export function parseRootInfo(xml: string): ParseRootInfoResult {
   const emptyErr = checkEmpty(xml, 'wsdl');
   if (emptyErr) return { ok: false, error: emptyErr };
-
-  const sizeErr = checkSize(xml, MAX_XML_BYTES, 'wsdl');
-  if (sizeErr) return { ok: false, error: sizeErr };
 
   const depthErr = checkDepth(xml, MAX_NESTING_DEPTH, 'wsdl');
   if (depthErr) return { ok: false, error: depthErr };

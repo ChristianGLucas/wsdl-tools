@@ -1,30 +1,12 @@
-// Tiny shared input-size/emptiness/nesting-depth guards used by every node in
-// this package. Kept trivial and dependency-free on purpose. These run BEFORE
-// any XML parsing touches the input — bounding cost on the raw text, not on
-// whatever tree the parser would build from it.
+// Tiny shared emptiness/nesting-depth guards used by every node in this
+// package. Kept trivial and dependency-free on purpose. These run BEFORE
+// any XML parsing touches the input. Payload size is the platform's job,
+// not this package's — no byte-size cap lives here; checkDepth below is
+// kept because it guards a genuine stack-overflow risk, not memory/DoS.
 
 export interface GuardError {
   code: string;
   message: string;
-}
-
-export function byteLength(s: string): number {
-  return Buffer.byteLength(s || '', 'utf8');
-}
-
-/**
- * Reject oversized input BEFORE any parsing/allocation work touches it.
- * 3 MiB leaves headroom under the platform's ~4 MiB gRPC message cap.
- */
-export function checkSize(text: string, maxBytes: number, fieldName: string): GuardError | null {
-  const len = byteLength(text);
-  if (len > maxBytes) {
-    return {
-      code: 'INPUT_TOO_LARGE',
-      message: `\`${fieldName}\` is ${len} bytes, exceeding the ${maxBytes}-byte cap.`,
-    };
-  }
-  return null;
 }
 
 export function checkEmpty(text: string, fieldName: string): GuardError | null {

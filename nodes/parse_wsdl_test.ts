@@ -113,9 +113,16 @@ describe('ParseWsdl', () => {
     expect(out.getError()).toMatch(/nesting/i);
   });
 
-  it('rejects oversized input before parsing', () => {
-    const huge = '<wsdl:definitions>' + 'x'.repeat(4 * 1024 * 1024) + '</wsdl:definitions>';
+  it('handles a large input without crashing (no payload-size limit)', () => {
+    // No byte-size cap is imposed by this node -- the platform bounds
+    // payload size, not this node. A large document still returns a
+    // structured result rather than crashing or hanging.
+    const huge =
+      '<wsdl:definitions xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/" targetNamespace="urn:x">' +
+      '<!-- ' + 'x'.repeat(4 * 1024 * 1024) + ' -->' +
+      '</wsdl:definitions>';
     const out = parseWsdl(testContext, makeInput(huge));
-    expect(out.getError()).toMatch(/exceeding/i);
+    expect(out.getError()).toBe('');
+    expect(out.getTargetNamespace()).toBe('urn:x');
   });
 });
